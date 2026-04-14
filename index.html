@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+  <title>Money Tracker Multi Akun</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #63ad72, #4a7255); margin:0; }
+    .box { background: #ffffffcc; padding: 20px; margin: 20px; border-radius: 20px; }
+    input, select {
+      width: 100%; padding: 10px; margin: 6px 0; border-radius: 10px; border: 1px solid #ddd;
+    }
+    button {
+      width: 100%; padding: 8px; margin: 4px 0; border-radius: 10px; border: none; background: #9ee8ff; font-size: 13px;
+    }
+    .hidden { display:none; }
+    li { display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; }
+    .income { color:rgb(22, 177, 22); }
+    .expense { color:red; }
+  </style>
+</head>
+<body>
+
+<div class="box" id="loginPage">
+  <h3>👤 Account</h3>
+  <input type="text" id="username" placeholder="Nama akun">
+  <button onclick="login()">Login</button>
+</div>
+
+<div class="box hidden" id="mainPage">
+  <h3>💸 Your Money Tracker</h3>
+  <p id="userLabel"></p>
+
+  <input type="date" id="date">
+  <input type="text" id="desc" placeholder="Information">
+  <input type="number" id="amount" placeholder="Amount (Rp)">
+
+  <select id="type">
+    <option value="income">income</option>
+    <option value="expense">expense</option>
+  </select>
+
+  <button onclick="addTransaction()">Add</button>
+  <button onclick="showHistory()">History</button>
+  <button onclick="logout()">Change Account</button>
+
+  <h3>Balance: <span id="balance">Rp 0</span></h3>
+</div>
+
+<div class="box hidden" id="historyPage">
+  <h3>📒 History</h3>
+  <canvas id="myChart"></canvas>
+  <ul id="list"></ul>
+  <button onclick="backToMain()">Back</button>
+</div>
+
+<script>
+let currentUser = localStorage.getItem("lastUser") || null;
+let data = JSON.parse(localStorage.getItem("moneyData")) || {};
+let chart;
+
+function saveData(){
+  localStorage.setItem("moneyData", JSON.stringify(data));
+  if(currentUser) localStorage.setItem("lastUser", currentUser);
+}
+
+function formatRupiah(angka) {
+  return 'Rp ' + angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function login(){
+  let username = document.getElementById("username").value;
+  if(!username) return alert("Masukkan nama akun!");
+
+  currentUser = username;
+  if(!data[currentUser]) data[currentUser] = { balance: 0, transactions: [] };
+
+  saveData();
+  showMain();
+}
+
+function showMain(){
+  document.getElementById("loginPage").classList.add("hidden");
+  document.getElementById("mainPage").classList.remove("hidden");
+  document.getElementById("historyPage").classList.add("hidden");
+  document.getElementById("userLabel").innerText = "Akun: " + currentUser;
+  updateUI();
+}
+
+function logout(){
+  currentUser = null;
+  localStorage.removeItem("lastUser");
+  document.getElementById("loginPage").classList.remove("hidden");
+  document.getElementById("mainPage").classList.add("hidden");
+}
+
+function addTransaction() {
+  let date = document.getElementById("date").value;
+  let desc = document.getElementById("desc").value;
+  let amount = parseInt(document.getElementById("amount").value);
+  let type = document.getElementById("type").value;
+
+  if (!date || !desc || !amount) return alert("Isi semua data!");
+
+  let userData = data[currentUser];
+  if (type === "income") userData.balance += amount;
+  else userData.balance -= amount;
+
+  userData.transactions.push({ date, desc, amount, type });
+  saveData();
+  updateUI();
+
+  document.getElementById("date").value = "";
+  document.getElementById("desc").value = "";
+  document.getElementById("amount").value = "";
+}
+
+function updateUI(){
+  let userData = data[currentUser];
+  document.getElementById("balance").innerText = formatRupiah(userData.balance);
+}
+
+function showHistory() {
+  document.getElementById("mainPage").classList.add("hidden");
+  document.getElementById("historyPage").classList.remove("hidden");
+
+  let list = document.getElementById("list");
+  list.innerHTML = "";
+
+  let trxList = data[currentUser].transactions;
+
+  trxList.forEach(trx => {
+    let li = document.createElement("li");
+    let sign = trx.type === "income" ? "+" : "-";
+    li.innerHTML = `<span>${trx.date} - ${trx.desc}</span><span class='${trx.type}'><b>${sign}${formatRupiah(trx.amount)}</b></span>`;
+    list.appendChild(li);
+  });
+
+  let map = {};
+  trxList.forEach(trx => {
+    if(!map[trx.date]) map[trx.date] = {income:0, expense:0};
+    map[trx.date][trx.type] += trx.amount;
+  });
+
+  let labels = Object.keys(map).sort();
+  let incomeData = labels.map(d => map[d].income);
+  let expenseData = labels.map(d => map[d].expense);
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(document.getElementById('myChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Pemasukan', data: incomeData, barThickness: 6 },
+        { label: 'Pengeluaran', data: expenseData, barThickness: 6 }
+      ]
+    }
+  });
+}
+
+function backToMain(){ showMain(); }
+
+if(currentUser && data[currentUser]) showMain();
+</script>
+
+</body>
+</html>
